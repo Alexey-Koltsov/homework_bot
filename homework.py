@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from http import HTTPStatus
 
 
-from exceptions import HttpStatusNotOK, KeyExistingException, ValueExistingException
+from exceptions import HttpStatusNotOK
 
 load_dotenv()
 
@@ -75,6 +75,8 @@ def check_response(response):
                       'данные приходят не в виде списка.')
         raise TypeError('В ответе API домашки под ключом `homeworks` '
                         'данные приходят не в виде списка.')
+    if homeworks == []:
+        return False
     return True
 
 
@@ -101,7 +103,7 @@ def send_message(bot, message):
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Сообщение отправлено.')
     except Exception:
-        logging.error('При отправке сообщения произошла ошибка.')
+        logging.error(message)
 
 
 def main():
@@ -112,15 +114,19 @@ def main():
     timestamp = int(time.time())
     while True:
         try:
-            response = get_api_answer(timestamp)  # 1690412003
+            response = get_api_answer(timestamp)
             if check_response(response):
                 if previous_homework != response['homeworks']:
                     homework = response['homeworks'][0]
                     message = parse_status(homework)
                     send_message(bot, message)
                     previous_homework = response['homeworks']
+                else:
+                    logging.DEBUG('Новые статусы в ответе API отсутствуют.')
         except Exception as error:
-            logging.exception(f'Сбой в работе программы: {error}.')
+            message = f'Сбой в работе программы: {error}.'
+            send_message(bot, message)
+            logging.exception(message)
         finally:
             time.sleep(RETRY_PERIOD)
 
