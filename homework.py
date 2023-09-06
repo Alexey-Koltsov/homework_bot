@@ -32,6 +32,8 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+error_message = None
+
 
 def check_tokens():
     """Проверяется доступность переменных окружения."""
@@ -59,8 +61,8 @@ def get_api_answer(timestamp):
             params=data_for_request['payload']
         )
     except requests.exceptions.RequestException as error:
-        logging.error(f'Сбой в работе программы: Эндпоинт {ENDPOINT} '
-                      f'недоступен. Код ответа API: {error}.')
+        error_message = (f'Сбой в работе программы: Эндпоинт {ENDPOINT} '
+                         f'недоступен. Код ответа API: {error}.')
     homework_status_code = homework_statuses.status_code
     if homework_status_code != HTTPStatus.OK:
         raise HttpStatusNotOK('Статус ответа API не 200, '
@@ -74,12 +76,11 @@ def check_response(response):
         try:
             homeworks = response['homeworks']
         except EmptyAPIResponse('В ответе API домашки нет ключа `homeworks`.'):
-            logging.error('В ответе API домашки нет ключа `homeworks`.')
+            error_message = ('В ответе API домашки нет ключа `homeworks`.')
         if not isinstance(homeworks, list):
-            logging.error('В ответе API домашки под ключом `homeworks` '
-                          'данные приходят не в виде списка.')
-            raise TypeError('В ответе API домашки под ключом `homeworks` '
-                            'данные приходят не в виде списка.')
+            error_message = ('В ответе API домашки под ключом `homeworks` '
+                             'данные приходят не в виде списка.')
+            raise TypeError(error_message)
         if homeworks == []:
             return False
         return homeworks
@@ -92,14 +93,14 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        logging.error('В ответе API домашки нет ключа `homework_name`.')
+        error_message = ('В ответе API домашки нет ключа `homework_name`.')
     try:
         status = homework['status']
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError:
-        logging.error('В ответе API домашки возвращает '
-                      'недокументированный статус домашней '
-                      'работы либо домашку без статуса.')
+        error_message = ('В ответе API домашки возвращает '
+                         'недокументированный статус домашней '
+                         'работы либо домашку без статуса.')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -119,7 +120,7 @@ def main():
     check_tokens()
     previous_status = None
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = 0
     while True:
         try:
             response = get_api_answer(timestamp)
@@ -134,7 +135,8 @@ def main():
                 send_message(bot, new_status)
                 previous_status = new_status
         except Exception as error:
-            message = f'Сбой в работе программы: {error}.'
+            message = (f'Сбой в работе программы: {error}.'
+                       f'{error_message}')
             send_message(bot, message)
             logging.exception(message)
         finally:
