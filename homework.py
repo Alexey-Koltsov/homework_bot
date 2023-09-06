@@ -46,6 +46,7 @@ def check_tokens():
 
 def get_api_answer(timestamp):
     """Делается запрос к эндпоинту API-сервиса."""
+    global error_message
     data_for_request = {
         'ENDPOINT': ENDPOINT,
         'HEADERS': HEADERS,
@@ -90,6 +91,7 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекается информация о домашней работе и статус этой работы."""
+    global error_message
     try:
         homework_name = homework['homework_name']
     except KeyError:
