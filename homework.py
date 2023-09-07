@@ -1,10 +1,10 @@
-import os
 import logging
-import requests
+import os
 import sys
 import time
 from http import HTTPStatus
 
+import requests
 import telegram.ext
 from dotenv import load_dotenv
 
@@ -32,13 +32,10 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-error_message = None
-
 
 def check_tokens():
     """Проверяется доступность переменных окружения."""
-    tokens_for_check = (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
-    if not all(tokens_for_check):
+    if not all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)):
         logging.critical(
             'Переменные окружения недоступны.')
         raise TokensAccessError('Переменные окружения недоступны.')
@@ -46,24 +43,18 @@ def check_tokens():
 
 def get_api_answer(timestamp):
     """Делается запрос к эндпоинту API-сервиса."""
-    global error_message
     data_for_request = {
-        'ENDPOINT': ENDPOINT,
-        'HEADERS': HEADERS,
-        'payload': {'from_date': timestamp},
+        'url': ENDPOINT,
+        'params': {'from_date': timestamp},
+        'headers': HEADERS,
     }
-    logging.debug('Запрос к эндпоинту {ENDPOINT} API-сервиса '
-                  'c данными заголовка {HEADERS} и параметрами '
-                  '{payload} отправлено.'.format(**data_for_request))
+    logging.debug('Запрос к эндпоинту {url} API-сервиса '
+                  'c данными заголовка {headers} и параметрами '
+                  '{params} отправлено.'.format(**data_for_request))
     try:
-        homework_statuses = requests.get(
-            data_for_request['ENDPOINT'],
-            headers=data_for_request['HEADERS'],
-            params=data_for_request['payload']
-        )
-    except requests.exceptions.RequestException as error:
-        error_message = (f'Сбой в работе программы: Эндпоинт {ENDPOINT} '
-                         f'недоступен. Код ответа API: {error}.')
+        homework_statuses = requests.get(**data_for_request)
+    except requests.exceptions.RequestException:
+        ...
     homework_status_code = homework_statuses.status_code
     if homework_status_code != HTTPStatus.OK:
         raise HttpStatusNotOK('Статус ответа API не 200, '
@@ -76,14 +67,14 @@ def check_response(response):
     if isinstance(response, dict):
         try:
             homeworks = response['homeworks']
-        except EmptyAPIResponse('В ответе API домашки нет ключа `homeworks`.'):
-            error_message = ('В ответе API домашки нет ключа `homeworks`.')
+        except KeyError:
+            raise EmptyAPIResponse(
+                'В ответе API домашки нет ключа `homeworks`.'
+            )
         if not isinstance(homeworks, list):
             error_message = ('В ответе API домашки под ключом `homeworks` '
                              'данные приходят не в виде списка.')
             raise TypeError(error_message)
-        if homeworks == []:
-            return False
         return homeworks
     raise TypeError('В ответе API домашки `response` '
                     'по типу не является словарем.')
@@ -91,18 +82,15 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекается информация о домашней работе и статус этой работы."""
-    global error_message
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        error_message = ('В ответе API домашки нет ключа `homework_name`.')
+        ...
     try:
         status = homework['status']
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError:
-        error_message = ('В ответе API домашки возвращает '
-                         'недокументированный статус домашней '
-                         'работы либо домашку без статуса.')
+        ...
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -131,17 +119,16 @@ def main():
                 homework = homeworks[0]
                 new_status = parse_status(homework)
             else:
-                message = 'Новые статусы в ответе API отсутствуют.'
-                logging.DEBUG(message)
-            if previous_status != new_status:
-                send_message(bot, new_status)
-                previous_status = new_status
+                new_status = 'Новые статусы в ответе API отсутствуют.'
+                logging.DEBUG(new_status)
         except Exception as error:
-            message = (f'Сбой в работе программы: {error}.'
-                       f'{error_message}')
+            message = (f'Сбой в работе программы: {error}.')
             send_message(bot, message)
             logging.exception(message)
         finally:
+            if previous_status != new_status:
+                send_message(bot, new_status)
+                previous_status = new_status
             time.sleep(RETRY_PERIOD)
 
 
