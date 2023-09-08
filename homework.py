@@ -8,7 +8,8 @@ import requests
 import telegram.ext
 from dotenv import load_dotenv
 
-from exceptions import EmptyAPIResponse, HttpStatusNotOK, TokensAccessError
+from exceptions import (EmptyAPIResponse, HttpStatusNotOK, HomeworkStatusError,
+                        NoHomeworkNameKey, RequestError, TokensAccessError)
 
 load_dotenv()
 
@@ -53,8 +54,9 @@ def get_api_answer(timestamp):
                   '{params} отправлено.'.format(**data_for_request))
     try:
         homework_statuses = requests.get(**data_for_request)
-    except requests.exceptions.RequestException:
-        ...
+    except requests.exceptions.RequestException as error:
+        raise RequestError(f'Сбой в работе программы: Эндпоинт {ENDPOINT} '
+                           f'недоступен. Код ответа API: {error}.')
     homework_status_code = homework_statuses.status_code
     if homework_status_code != HTTPStatus.OK:
         raise HttpStatusNotOK('Статус ответа API не 200, '
@@ -85,12 +87,16 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        ...
+        raise NoHomeworkNameKey(
+            'В ответе API домашки нет ключа `homework_name`.'
+        )
     try:
         status = homework['status']
         verdict = HOMEWORK_VERDICTS[status]
     except KeyError:
-        ...
+        raise HomeworkStatusError('В ответе API домашки возвращает '
+                                  'недокументированный статус домашней '
+                                  'работы либо домашку без статуса.')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -121,14 +127,18 @@ def main():
             else:
                 new_status = 'Новые статусы в ответе API отсутствуют.'
                 logging.DEBUG(new_status)
-        except Exception as error:
-            message = (f'Сбой в работе программы: {error}.')
-            send_message(bot, message)
-            logging.exception(message)
-        finally:
             if previous_status != new_status:
                 send_message(bot, new_status)
                 previous_status = new_status
+        except EmptyAPIResponse as error:
+            logger.error(error)
+        except Exception as error:
+            message = (f'Сбой в работе программы: {error}.')
+            logging.exception(message)
+            if previous_status != message:
+                send_message(bot, message)
+                previous_status = message
+        finally:
             time.sleep(RETRY_PERIOD)
 
 
