@@ -83,23 +83,19 @@ pip install -r requirements.txt
 ## Создать файл .env и указать в нем переменные окружения
 `
 PRACTICUM_TOKEN = '*************************************************'
-`
-`
 TELEGRAM_TOKEN = '*************:***************-******************'
-`
-`
 TELEGRAM_CHAT_ID = ************
 `
 
 ## Запустить проект
 Windows
 `
-python manage.py runserver
+python homework.py
 `
 
 LinuxmacOS
 `
-python3 manage.py runserver
+python3 homework.py
 `
 
 ## Автор: 
